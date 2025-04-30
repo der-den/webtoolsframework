@@ -1,0 +1,320 @@
+{% extends 'base.html' %}
+
+{% block title %}Case: {{ case_name }} - Web Tools Framework{% endblock %}
+
+{% block scripts %}
+<script>
+    // Load available plugins when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAvailablePlugins();
+        
+        // Add event listener for plugin selection change
+        document.getElementById('plugin_name').addEventListener('change', function() {
+            const pluginName = this.value;
+            const formContainer = document.getElementById('pluginFormContainer');
+            
+            if (pluginName) {
+                // Show the form container
+                formContainer.style.display = 'block';
+                
+                // Set the hidden input value
+                document.getElementById('plugin_name_hidden').value = pluginName;
+                
+                // Load plugin details and parameters
+                loadPluginDetails(pluginName);
+            } else {
+                // Hide the form container
+                formContainer.style.display = 'none';
+                
+                // Clear additional parameters
+                document.getElementById('additionalParams').innerHTML = '';
+                document.getElementById('pluginDescription').innerHTML = '';
+            }
+        });
+    });
+    
+    // Function to load available plugins
+    function loadAvailablePlugins() {
+        fetch('/plugins')
+            .then(response => response.text())
+            .then(html => {
+                // Parse the HTML to extract plugin information
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const pluginRows = doc.querySelectorAll('table tbody tr');
+                
+                const pluginSelect = document.getElementById('plugin_name');
+                
+                // Clear existing options except the first one
+                while (pluginSelect.options.length > 1) {
+                    pluginSelect.remove(1);
+                }
+                
+                // Add options for each plugin
+                pluginRows.forEach(row => {
+                    const pluginName = row.cells[0].textContent.trim();
+                    const pluginDescription = row.cells[1].textContent.trim();
+                    const option = document.createElement('option');
+                    option.value = pluginName;
+                    option.textContent = `${pluginName} - ${pluginDescription}`;
+                    pluginSelect.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error loading plugins:', error));
+    }
+    
+    // Function to load plugin details and create the form
+    function loadPluginDetails(pluginName) {
+        fetch(`/plugin_info/${pluginName}`)
+            .then(response => response.json())
+            .then(pluginInfo => {
+                // Display plugin description
+                const descriptionContainer = document.getElementById('pluginDescription');
+                let descriptionHTML = `<h5>${pluginInfo.name}</h5>`;
+                
+                if (pluginInfo.long_description) {
+                    descriptionHTML += `<p>${pluginInfo.long_description}</p>`;
+                } else {
+                    descriptionHTML += `<p>${pluginInfo.description}</p>`;
+                }
+                
+                descriptionHTML += `<div class="text-muted">Version: ${pluginInfo.version} | Author: ${pluginInfo.author}</div>`;
+                descriptionContainer.innerHTML = descriptionHTML;
+                
+                // Create form fields for parameters
+                createParameterFields(pluginInfo.parameters);
+            })
+            .catch(error => {
+                console.error('Error loading plugin details:', error);
+                document.getElementById('pluginFormContainer').style.display = 'none';
+                alert('Error loading plugin details. Please try again.');
+            });
+    }
+    
+    // Function to create parameter fields
+    function createParameterFields(parameters) {
+        const paramsContainer = document.getElementById('additionalParams');
+        paramsContainer.innerHTML = '';
+        
+        // Check if there are any parameters other than filename
+        const hasCustomParams = parameters.some(param => param.name !== 'filename');
+        
+        if (hasCustomParams) {
+            // Add a header for additional parameters
+            const header = document.createElement('h6');
+            header.className = 'mt-4 mb-3';
+            header.textContent = 'Additional Parameters';
+            paramsContainer.appendChild(header);
+            
+            // Add form fields for each parameter
+            parameters.forEach(param => {
+                // Skip filename parameter as we already have a file selector
+                if (param.name === 'filename') return;
+                
+                const formGroup = document.createElement('div');
+                formGroup.className = 'mb-3';
+                
+                const label = document.createElement('label');
+                label.className = 'form-label';
+                label.setAttribute('for', param.name);
+                label.textContent = param.description || param.name;
+                
+                let input;
+                
+                // Create appropriate input based on parameter type
+                if (param.type === 'boolean') {
+                    const checkDiv = document.createElement('div');
+                    checkDiv.className = 'form-check';
+                    
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'form-check-input';
+                    input.id = param.name;
+                    input.name = param.name;
+                    if (param.default) input.checked = true;
+                    
+                    const checkLabel = document.createElement('label');
+                    checkLabel.className = 'form-check-label';
+                    checkLabel.setAttribute('for', param.name);
+                    checkLabel.textContent = param.description || param.name;
+                    
+                    checkDiv.appendChild(input);
+                    checkDiv.appendChild(checkLabel);
+                    formGroup.appendChild(checkDiv);
+                } else if (param.type === 'integer') {
+                    input = document.createElement('input');
+                    input.type = 'number';
+                    input.className = 'form-control';
+                    input.id = param.name;
+                    input.name = param.name;
+                    if (param.default !== undefined) input.value = param.default;
+                    if (param.required) input.required = true;
+                    
+                    formGroup.appendChild(label);
+                    formGroup.appendChild(input);
+                } else { // string and other types
+                    input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'form-control';
+                    input.id = param.name;
+                    input.name = param.name;
+                    if (param.default !== undefined) input.value = param.default;
+                    if (param.required) input.required = true;
+                    
+                    formGroup.appendChild(label);
+                    formGroup.appendChild(input);
+                }
+                
+                paramsContainer.appendChild(formGroup);
+            });
+        }
+    }
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ case_name }}</li>
+            </ol>
+        </nav>
+        <h1 class="mb-4">Case: {{ case_name }}</h1>
+    </div>
+</div>
+<p>Files in this case: <span class="badge bg-primary">{{ file_count }}</span></p>
+
+
+<div class="row">
+    <div class="col-md-12 mb-3">
+        <form action="{{ url_for('upload_file', case_name=case_name) }}" method="post" enctype="multipart/form-data" class="d-flex">
+            <input type="file" class="form-control me-2" id="file" name="file" required>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Files</h5>
+            </div>
+            <div class="card-body">
+                {% if files %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Size</th>
+                                    <th>Modified</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in files %}
+                                <tr>
+                                    <td>{{ file.name }}</td>
+                                    <td>{{ file.size }}</td>
+                                    <td>{{ file.modified }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('download_file', case_name=case_name, filename=file.name) }}" class="btn btn-sm btn-primary">Download</a>
+                                            <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#deleteFileModal{{ loop.index }}">Delete</button>
+                                        </div>
+                                        
+                                        <!-- Delete File Confirmation Modal -->
+                                        <div class="modal fade" id="deleteFileModal{{ loop.index }}" tabindex="-1" aria-labelledby="deleteFileModalLabel" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title" id="deleteFileModalLabel">Confirm Deletion</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        Are you sure you want to delete the file "{{ file.name }}"? This action cannot be undone.
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                        <form action="{{ url_for('delete_file', case_name=case_name, filename=file.name) }}" method="post">
+                                                            <button type="submit" class="btn btn-danger">Delete</button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p>No files found in this case. Upload a file to get started.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Run Plugin Section -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Run Plugin</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="mb-3">
+                            <label for="plugin_name" class="form-label">Select Plugin</label>
+                            <select class="form-select" id="plugin_name">
+                                <option value="">Choose a plugin...</option>
+                                <!-- Plugin options will be populated via JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Plugin details and form will be dynamically loaded here -->
+                <div id="pluginFormContainer" style="display: none;">
+                    <div class="alert alert-info mb-3" id="pluginDescription">
+                        <!-- Plugin description will be displayed here -->
+                    </div>
+                    
+                    <form id="runPluginForm" action="{{ url_for('run_plugin', case_name=case_name) }}" method="post">
+                        <input type="hidden" id="plugin_name_hidden" name="plugin_name">
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="mb-3">
+                                    <label for="filename" class="form-label">Select File</label>
+                                    <select class="form-select" id="filename" name="filename" required>
+                                        <option value="">Choose a file...</option>
+                                        {% for file in files %}
+                                        <option value="{{ file.name }}">{{ file.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3 d-flex align-items-end h-100">
+                                    <button type="submit" class="btn btn-primary w-100">Run Plugin</button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="additionalParams" class="mt-3">
+                            <!-- Additional parameters will be added here via JavaScript -->
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

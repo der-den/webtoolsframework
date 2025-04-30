@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+
+{% block title %}Plugins - Web Tools Framework{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Plugins</li>
+            </ol>
+        </nav>
+        <h1 class="mb-4">Plugin Management</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Available Plugins</h5>
+            </div>
+            <div class="card-body">
+                {% if plugins %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Plugin Name</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plugin in plugins %}
+                                <tr>
+                                    <td>{{ plugin.name }}</td>
+                                    <td>{{ plugin.description }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#infoModal{{ loop.index }}">Info</button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Plugin Info Modals (outside of table structure) -->
+                    {% for plugin in plugins %}
+                    <div class="modal fade" id="infoModal{{ loop.index }}" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="infoModalLabel">Plugin: {{ plugin.name }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <h6>Description</h6>
+                                    <p>{{ plugin.description }}</p>
+                                    
+                                    <h6>Version</h6>
+                                    <p>{{ plugin.version }}</p>
+                                    
+                                    <h6>Author</h6>
+                                    <p>{{ plugin.author }}</p>
+                                    
+                                    <h6>Parameters</h6>
+                                    {% if plugin.parameters %}
+                                        <div class="table-responsive">
+                                            <table class="table table-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Type</th>
+                                                        <th>Description</th>
+                                                        <th>Required</th>
+                                                        <th>Default</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for param in plugin.parameters %}
+                                                    <tr>
+                                                        <td>{{ param.name }}</td>
+                                                        <td>{{ param.type }}</td>
+                                                        <td>{{ param.description }}</td>
+                                                        <td>{{ param.required|default(false) }}</td>
+                                                        <td>{{ param.default|default('-') }}</td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    {% else %}
+                                        <p>No parameters required</p>
+                                    {% endif %}
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p>No plugins found. Add Python scripts to the plugins directory to get started.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Upload New Plugin</h5>
+            </div>
+            <div class="card-body">
+                <p>This feature will be implemented in a future update.</p>
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Back to Home</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
