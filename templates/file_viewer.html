@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}View File: {{ filename }} - Case: {{ case_name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3>Viewing File: <code>{{ filename }}</code></h3>
+    <h5>Case: <code>{{ case_name }}</code></h5>
+    <hr>
+    {% if viewer_type == 'json' %}
+        <h5>Interpreted JSON View</h5>
+        <div style="background:#23272e;color:#d4d4d4;padding:1em;border-radius:5px;overflow-x:auto;">
+            {% macro render_json(obj) %}
+                {% if obj is mapping %}
+                    <table class="table table-sm table-bordered" style="color:#d4d4d4;background:#23272e;">
+                        <tbody>
+                        {% for key, value in obj.items() %}
+                            <tr>
+                                <th style="vertical-align:top;">{{ key }}</th>
+                                <td>{% if value is mapping or value is iterable and value is not string %}{{ render_json(value) }}{% else %}{{ value }}{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                {% elif obj is iterable and obj is not string %}
+                    <ol style="padding-left:1.5em;">
+                    {% for item in obj %}
+                        <li>{% if item is mapping or item is iterable and item is not string %}{{ render_json(item) }}{% else %}{{ item }}{% endif %}</li>
+                    {% endfor %}
+                    </ol>
+                {% else %}
+                    {{ obj }}
+                {% endif %}
+            {% endmacro %}
+            {{ render_json(json_obj) }}
+        </div>
+        <h6 class="mt-4">Raw JSON</h6>
+        <link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet"/>
+        <pre style="background:#23272e;color:#d4d4d4;padding:1em;border-radius:5px;overflow-x:auto;">
+            <code class="language-json" id="json-content">{{ content | safe }}</code>
+        </pre>
+        <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
+        <script>
+        // Ensure pretty-printing
+        try {
+            const el = document.getElementById('json-content');
+            el.textContent = JSON.stringify(JSON.parse(el.textContent), null, 2);
+            Prism.highlightElement(el);
+        } catch (e) {}
+        </script>
+    {% elif viewer_type == 'hex' %}
+        <h6>First 512 bytes (hex dump):</h6>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered" style="background:#23272e;color:#d4d4d4;">
+                <thead>
+                    <tr>
+                        <th style="width:6em">Offset (hex)</th>
+                        <th style="width:45%">Hex Bytes</th>
+                        <th style="width:45%">ASCII</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for hex_line, ascii_line in lines %}
+                    <tr>
+                        <td>{{ '%04x' % (loop.index0 * 16) }}</td>
+                        <td style="font-family:monospace;">{{ hex_line }}</td>
+                        <td style="font-family:monospace;">{{ ascii_line }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <pre style="background:#23272e;color:#d4d4d4;padding:1em;border-radius:5px;overflow-x:auto;">{{ content }}</pre>
+    {% endif %}
+    <a href="{{ url_for('view_case', case_name=case_name) }}" class="btn btn-secondary mt-3">Back to Case</a>
+</div>
+{% endblock %}

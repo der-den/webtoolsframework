@@ -114,9 +114,9 @@ class FileIdentifierPlugin(WebToolsPlugin):
                 
                 # Add Magika results
                 results["mime_type"] = result.output.mime_type
-                results["file_type"] = result.output.ct_label
-                results["group_type"] = result.output.group_label
-                results["confidence"] = float(result.output.score)
+                results["file_type"] = result.output.label
+                results["group_type"] = result.output.label
+                results["confidence"] = float(result.score)
             else:
                 # Fallback to basic file type detection
                 # Read first 16 bytes for magic number identification
@@ -185,7 +185,7 @@ class FileIdentifierPlugin(WebToolsPlugin):
             # Return success
             return {
                 "success": True,
-                "message": f"File identification completed for '{filename}'",
+
                 "output": results,
                 "output_file": output_file
             }

@@ -6,7 +6,7 @@ import json
 import subprocess
 import sys
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, jsonify, session
 from flask_bootstrap import Bootstrap5
 
 app = Flask(__name__)
@@ -63,7 +63,8 @@ def index():
 @app.route('/create_case', methods=['POST'])
 def create_case():
     case_name = request.form.get('case_name', '').strip()
-    
+    action = request.form.get('action', 'create')
+
     # Validate case name (only English letters and numbers)
     if not re.match(r'^[a-zA-Z0-9]+$', case_name):
         flash('Case name can only contain English letters and numbers', 'danger')
@@ -76,9 +77,12 @@ def create_case():
         flash(f'Case "{case_name}" already exists', 'danger')
     else:
         os.makedirs(case_path)
-        flash(f'Case "{case_name}" created successfully', 'success')
-    
-    return redirect(url_for('index'))
+        # Do not show positive flash message
+
+    if action == 'create_and_open' and os.path.exists(case_path):
+        return redirect(url_for('view_case', case_name=case_name))
+    else:
+        return redirect(url_for('index'))
 
 @app.route('/delete_case/<case_name>', methods=['POST'])
 def delete_case(case_name):
@@ -123,6 +127,61 @@ def view_case(case_name):
     
     return render_template('case.html', case_name=case_name, files=files, file_count=file_count)
 
+@app.route('/view_file/<case_name>/<filename>')
+def view_file(case_name, filename):
+    import mimetypes
+    import binascii
+    case_path = os.path.join(CASES_DIR, case_name)
+    file_path = os.path.join(case_path, filename)
+    if not os.path.exists(file_path):
+        flash('File not found', 'danger')
+        return redirect(url_for('view_case', case_name=case_name))
+
+    # Default mode and content
+    viewer_type = 'text'
+    content = ''
+    try:
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == '.json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                import json
+                data = json.load(f)
+                content = json.dumps(data, indent=2, ensure_ascii=False)
+                json_obj = data
+                viewer_type = 'json'
+        else:
+            # Try to read as text
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    viewer_type = 'text'
+            except Exception:
+                # Binary: show hex dump of first 512 bytes
+                with open(file_path, 'rb') as f:
+                    raw = f.read(512)
+                    # Format hex output similar to magic_bytes_formatted (space-separated, 16 bytes per line)
+                    hex_bytes = [f'{b:02x}' for b in raw]
+                    hex_lines = []
+                    ascii_lines = []
+                    for i in range(0, len(hex_bytes), 16):
+                        chunk = hex_bytes[i:i+16]
+                        hex_line = ' '.join(chunk)
+                        ascii_line = ''.join(chr(int(h, 16)) if 32 <= int(h, 16) <= 126 else '.' for h in chunk)
+                        hex_lines.append(hex_line)
+                        ascii_lines.append(ascii_line)
+                    lines = list(zip(hex_lines, ascii_lines))
+                    viewer_type = 'hex'
+    except Exception as e:
+        flash(f'Error reading file: {str(e)}', 'danger')
+        return redirect(url_for('view_case', case_name=case_name))
+    if viewer_type == 'hex':
+        return render_template('file_viewer.html', case_name=case_name, filename=filename, lines=lines, viewer_type=viewer_type)
+    elif viewer_type == 'json':
+        return render_template('file_viewer.html', case_name=case_name, filename=filename, content=content, viewer_type=viewer_type, json_obj=json_obj)
+    else:
+        return render_template('file_viewer.html', case_name=case_name, filename=filename, content=content, viewer_type=viewer_type)
+
+
 @app.route('/plugins')
 def plugins():
     # Get all plugins with their info
@@ -149,6 +208,30 @@ def plugins():
                     })
     
     return render_template('plugins.html', plugins=plugin_info)
+
+# API endpoint for JSON plugin list
+@app.route('/api/plugins')
+def api_plugins():
+    plugin_list = []
+    if PLUGIN_SYSTEM_AVAILABLE:
+        all_plugins = get_all_plugins(PLUGINS_DIR)
+        for name, plugin in all_plugins.items():
+            plugin_list.append({
+                'name': plugin.name,
+                'description': plugin.description
+            })
+    else:
+        if os.path.exists(PLUGINS_DIR):
+            plugin_files = [f for f in os.listdir(PLUGINS_DIR) 
+                         if os.path.isfile(os.path.join(PLUGINS_DIR, f)) and f.endswith('.py')]
+            for plugin_file in plugin_files:
+                if plugin_file != 'plugin_base.py' and plugin_file != '__init__.py':
+                    plugin_list.append({
+                        'name': os.path.splitext(plugin_file)[0],
+                        'description': 'No description available'
+                    })
+    return jsonify(plugin_list)
+
 
 @app.route('/plugin_info/<plugin_name>')
 def plugin_info(plugin_name):
@@ -210,11 +293,9 @@ def run_plugin(case_name):
     try:
         result = plugin.run(case_path, params)
         
-        if result['success']:
-            flash(result['message'], 'success')
-        else:
-            flash(f"Plugin error: {result['message']}", 'danger')
-            
+        if not result.get('success', False):
+            if 'message' in result:
+                flash(f"Plugin error: {result['message']}", 'danger')
         # Store the result in session for display
         if 'output' in result and result['output']:
             # Convert any non-serializable objects to strings
@@ -274,7 +355,7 @@ def upload_file(case_name):
         flash(f'File "{filename}" already exists', 'danger')
     else:
         file.save(file_path)
-        flash(f'File "{filename}" uploaded successfully', 'success')
+        # Do not show positive flash message for successful upload
     
     return redirect(url_for('view_case', case_name=case_name))
 
